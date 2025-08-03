@@ -1,26 +1,13 @@
 import React, { useState } from 'react';
 import { X, Heart, Clock, Users, ChefHat, Trash2, Eye } from 'lucide-react';
-
-interface SavedRecipe {
-  id: string;
-  name: string;
-  description: string;
-  ingredients: string[];
-  instructions: string[];
-  chefsTip: string;
-  imagePrompt: string;
-  savedAt: Date;
-  status: 'favorite' | 'want-to-try';
-  estimatedTime?: string;
-  servings?: number;
-}
+import type { Recipe } from '../lib/supabase';
 
 interface FavoritesModalProps {
   isOpen: boolean;
   onClose: () => void;
-  savedRecipes: SavedRecipe[];
+  savedRecipes: Recipe[];
   onDeleteRecipe: (id: string) => void;
-  onViewRecipe: (recipe: SavedRecipe) => void;
+  onViewRecipe: (recipe: Recipe) => void;
 }
 
 export default function FavoritesModal({ 
@@ -31,13 +18,13 @@ export default function FavoritesModal({
   onViewRecipe 
 }: FavoritesModalProps) {
   const [activeTab, setActiveTab] = useState<'favorite' | 'want-to-try'>('favorite');
-  const [selectedRecipe, setSelectedRecipe] = useState<SavedRecipe | null>(null);
+  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
 
   if (!isOpen) return null;
 
   const filteredRecipes = savedRecipes.filter(recipe => recipe.status === activeTab);
 
-  const handleViewRecipe = (recipe: SavedRecipe) => {
+  const handleViewRecipe = (recipe: Recipe) => {
     setSelectedRecipe(recipe);
   };
 
@@ -156,7 +143,7 @@ export default function FavoritesModal({
                         <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
                           <span className="flex items-center">
                             <Clock className="w-3 h-3 mr-1" />
-                            {recipe.estimatedTime || '30 mins'}
+                            {recipe.estimated_time || '30 mins'}
                           </span>
                           <span className="flex items-center">
                             <Users className="w-3 h-3 mr-1" />
@@ -234,7 +221,7 @@ export default function FavoritesModal({
                     Ingredients
                   </h3>
                   <ul className="space-y-2">
-                    {selectedRecipe.ingredients.map((ingredient, index) => (
+                    {(selectedRecipe.ingredients as string[]).map((ingredient, index) => (
                       <li key={index} className="flex items-start">
                         <span className="w-2 h-2 bg-orange-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
                         <span className="text-gray-700">{ingredient}</span>
@@ -248,7 +235,7 @@ export default function FavoritesModal({
                     Instructions
                   </h3>
                   <ol className="space-y-3">
-                    {selectedRecipe.instructions.map((step, index) => (
+                    {(selectedRecipe.instructions as string[]).map((step, index) => (
                       <li key={index} className="flex items-start">
                         <span className="bg-orange-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mr-3 mt-0.5 flex-shrink-0">
                           {index + 1}
@@ -263,7 +250,7 @@ export default function FavoritesModal({
                   <h3 className="text-lg font-bold text-orange-800 mb-2">
                     Chef's Tip
                   </h3>
-                  <p className="text-orange-700">{selectedRecipe.chefsTip}</p>
+                  <p className="text-orange-700">{selectedRecipe.chefs_tip}</p>
                 </div>
               </div>
             </div>

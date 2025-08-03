@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { ChefHat, Clock, Users, Utensils, Sparkles, Camera, Copy, Check, Heart, BookOpen, User, LogOut } from 'lucide-react';
 import LoginModal from './components/LoginModal';
 import FavoritesModal from './components/FavoritesModal';
+import { useAuth } from './hooks/useAuth';
+import { useRecipes } from './hooks/useRecipes';
+import type { Recipe } from './lib/supabase';
 
 interface RecipeInputs {
   ingredients: string;
@@ -23,20 +26,10 @@ interface GeneratedRecipe {
   imagePrompt: string;
 }
 
-interface SavedRecipe extends GeneratedRecipe {
-  id: string;
-  savedAt: Date;
-  status: 'favorite' | 'want-to-try';
-  estimatedTime?: string;
-  servings?: number;
-}
-
-interface User {
-  name: string;
-  email: string;
-}
-
 function App() {
+  const { user, loading: authLoading, signOut } = useAuth();
+  const { recipes, saveRecipe, deleteRecipe } = useRecipes(user);
+  
   const [inputs, setInputs] = useState<RecipeInputs>({
     ingredients: '',
     additionalIngredients: '',
@@ -51,10 +44,8 @@ function App() {
   const [recipe, setRecipe] = useState<GeneratedRecipe | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showFavoritesModal, setShowFavoritesModal] = useState(false);
-  const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
   const [saveAnimation, setSaveAnimation] = useState<string | null>(null);
 
   const cuisineOptions = [
@@ -163,54 +154,66 @@ function App() {
     };
   };
 
-  const handleLogin = (userData: User) => {
-    setUser(userData);
-    // Load saved recipes from localStorage
-    const saved = localStorage.getItem(`recipes_${userData.email}`);
-    if (saved) {
-      setSavedRecipes(JSON.parse(saved));
-    }
+  const handleLogout = async () => {
+    await signOut();
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setSavedRecipes([]);
-  };
-
-  const saveRecipe = (status: 'favorite' | 'want-to-try') => {
+  const handleSaveRecipe = async (status: 'favorite' | 'want-to-try') => {
     if (!user || !recipe) {
       setShowLoginModal(true);
       return;
     }
 
-    const savedRecipe: SavedRecipe = {
-      ...recipe,
-      id: Date.now().toString(),
-      savedAt: new Date(),
-      status,
-      estimatedTime: inputs.timeAllotment || '30 mins',
-      servings: 4
-    };
+    try {
+      const recipeData = {
+        name: recipe.name,
+        description: recipe.description,
+        ingredients: recipe.ingredients,
+        instructions: recipe.instructions,
+        chefs_tip: recipe.chefsTip,
+        image_prompt: recipe.imagePrompt,
+        status,
+        estimated_time: inputs.timeAllotment || '30 mins',
+        servings: 4,
+        cuisine_style: inputs.cuisineStyle,
+        meal_type: inputs.mealType,
+        dietary_needs: inputs.dietaryNeeds,
+      };
 
-    const updatedRecipes = [...savedRecipes, savedRecipe];
-    setSavedRecipes(updatedRecipes);
-    localStorage.setItem(`recipes_${user.email}`, JSON.stringify(updatedRecipes));
-    
-    // Show save animation
-    setSaveAnimation(status);
-    setTimeout(() => setSaveAnimation(null), 2000);
+      const { error } = await saveRecipe(recipeData);
+      
+      if (!error) {
+        // Show save animation
+        setSaveAnimation(status);
+        setTimeout(() => setSaveAnimation(null), 2000);
+      } else {
+        console.error('Error saving recipe:', error);
+        alert('Failed to save recipe. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error saving recipe:', error);
+      alert('Failed to save recipe. Please try again.');
+    }
   };
 
-  const deleteRecipe = (id: string) => {
-    if (!user) return;
-    
-    const updatedRecipes = savedRecipes.filter(r => r.id !== id);
-    setSavedRecipes(updatedRecipes);
-    localStorage.setItem(`recipes_${user.email}`, JSON.stringify(updatedRecipes));
+  const handleDeleteRecipe = async (id: string) => {
+    try {
+      await deleteRecipe(id);
+    } catch (error) {
+      console.error('Error deleting recipe:', error);
+      alert('Failed to delete recipe. Please try again.');
+    }
   };
 
-  const viewSavedRecipe = (savedRecipe: SavedRecipe) => {
-    setRecipe(savedRecipe);
+  const viewSavedRecipe = (savedRecipe: Recipe) => {
+    setRecipe({
+      name: savedRecipe.name,
+      description: savedRecipe.description,
+      ingredients: savedRecipe.ingredients as string[],
+      instructions: savedRecipe.instructions as string[],
+      chefsTip: savedRecipe.chefs_tip,
+      imagePrompt: savedRecipe.image_prompt,
+    });
     setShowFavoritesModal(false);
   };
 
@@ -223,6 +226,17 @@ function App() {
       console.error('Failed to copy text: ', err);
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 flex items-center justify-center">
+        <div className="text-center">
+          <ChefHat className="w-16 h-16 text-orange-600 mx-auto mb-4 animate-pulse" />
+          <p className="text-gray-600">Loading PantryChef AI...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50">
@@ -242,12 +256,14 @@ function App() {
                   className="flex items-center px-4 py-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
                 >
                   <BookOpen className="w-5 h-5 mr-2" />
-                  My Recipes ({savedRecipes.length})
+                  My Recipes ({recipes.length})
                 </button>
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center px-3 py-2 bg-orange-50 rounded-lg">
                     <User className="w-4 h-4 text-orange-600 mr-2" />
-                    <span className="text-sm font-medium text-gray-700">{user.name}</span>
+                    <span className="text-sm font-medium text-gray-700">
+                      {user.user_metadata?.name || user.email?.split('@')[0]}
+                    </span>
                   </div>
                   <button
                     onClick={handleLogout}
@@ -551,7 +567,7 @@ function App() {
                   </h3>
                   <div className="flex space-x-3">
                     <button
-                      onClick={() => saveRecipe('favorite')}
+                      onClick={() => handleSaveRecipe('favorite')}
                       className={`flex-1 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
                         saveAnimation === 'favorite'
                           ? 'bg-red-500 text-white scale-105'
@@ -562,7 +578,7 @@ function App() {
                       {saveAnimation === 'favorite' ? 'Saved to Favorites!' : 'Add to Favorites'}
                     </button>
                     <button
-                      onClick={() => saveRecipe('want-to-try')}
+                      onClick={() => handleSaveRecipe('want-to-try')}
                       className={`flex-1 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
                         saveAnimation === 'want-to-try'
                           ? 'bg-blue-500 text-white scale-105'
@@ -598,13 +614,12 @@ function App() {
       <LoginModal
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
-        onLogin={handleLogin}
       />
       <FavoritesModal
         isOpen={showFavoritesModal}
         onClose={() => setShowFavoritesModal(false)}
-        savedRecipes={savedRecipes}
-        onDeleteRecipe={deleteRecipe}
+        savedRecipes={recipes}
+        onDeleteRecipe={handleDeleteRecipe}
         onViewRecipe={viewSavedRecipe}
       />
     </div>

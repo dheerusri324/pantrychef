@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (user: { name: string; email: string }) => void;
 }
 
-export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
+export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -16,23 +16,41 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
     password: ''
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { signUp, signIn } = useAuth();
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
     
-    // Simulate API call
-    setTimeout(() => {
-      onLogin({ 
-        name: formData.name || formData.email.split('@')[0], 
-        email: formData.email 
-      });
-      setIsLoading(false);
+    try {
+      if (isSignUp) {
+        const { error } = await signUp(formData.email, formData.password, formData.name);
+        if (error) throw error;
+      } else {
+        const { error } = await signIn(formData.email, formData.password);
+        if (error) throw error;
+      }
+      
+      // Success - close modal and reset form
       onClose();
       setFormData({ name: '', email: '', password: '' });
-    }, 1500);
+      setIsSignUp(false);
+    } catch (error: any) {
+      console.error('Auth error:', error);
+      if (error.message.includes('Invalid login credentials')) {
+        setError('Invalid email or password. Please try again.');
+      } else if (error.message.includes('User already registered')) {
+        setError('An account with this email already exists. Please sign in instead.');
+      } else {
+        setError(error.message || 'An error occurred. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -50,6 +68,12 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {isSignUp && (
