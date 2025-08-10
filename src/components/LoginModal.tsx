@@ -69,9 +69,24 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
             </button>
           </div>
 
+          {!isSignUp && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-blue-700 text-sm">
+                <strong>New to PantryChef?</strong> Click "Sign Up" below to create your account and start saving recipes!
+              </p>
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-600 text-sm">{error}</p>
+              <p className="text-red-600 text-sm">
+                {error}
+                {error.includes('Invalid email or password') && (
+                  <span className="block mt-1 font-medium">
+                    Don't have an account? Try signing up instead!
+                  </span>
+                )}
+              </p>
             </div>
           )}
 
